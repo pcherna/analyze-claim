@@ -38,6 +38,22 @@ REQUIRED_FIELDS: frozenset[str] = frozenset(
 )
 
 
+class VinConsistencyVerdict(BaseModel):
+    """LLM judgment of whether the VIN is consistent with the claimed vehicle.
+
+    All fields optional for the same reason as RawExtraction: an unsure model
+    returns null instead of triggering a retry loop.
+    """
+
+    make_consistent: bool | None = Field(
+        None, description="Whether the VIN's WMI is consistent with the claimed make; null if you cannot judge"
+    )
+    model_consistent: bool | None = Field(
+        None, description="Whether the VIN's VDS is consistent with the claimed model; null if uncertain"
+    )
+    issues: list[str] = Field(default_factory=list, description="Evidence for any false verdict")
+
+
 class AnalyzeClaimRequest(BaseModel):
     ro_text: str
 

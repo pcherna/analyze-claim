@@ -57,14 +57,30 @@ coverage error), with a summary and per-field details:
 }
 ```
 
+## VIN cross-validation
+
+Beyond the check digit, the claimed vehicle identity is verified against the VIN:
+
+- **Year** — VIN position 10 is compared against the claimed year's code locally
+  (modulo the 30-year cycle).
+- **Make** — the WMI (first 3 chars) is decoded locally for the top 10 North
+  American makes (extensible table in `app/vin_decode.py`).
+- **Model always, and make for brands outside the table** — judged by a second,
+  small LLM call that receives the locally decoded facts. It is instructed to
+  flag only clear contradictions (a false pass is preferred over a false
+  rejection).
+
+Any mismatch joins the 422 `errors` list, so a 200 means the VIN fully checked out.
+
 ## Structure
 
 | Module | Purpose |
 | --- | --- |
 | `app/main.py` | Endpoint + orchestration: extract → validate → coverage |
 | `app/schema.py` | Extraction schema, `REQUIRED_FIELDS` (the one place to change requiredness), response model |
-| `app/extraction.py` | Pydantic AI agent — the only LLM-touching module |
-| `app/validators.py` | Per-field validators + VIN check digit; all failures collected |
+| `app/extraction.py` | Pydantic AI agents (extraction + VIN consistency) — the only LLM-touching module |
+| `app/vin_decode.py` | Local VIN decoding: year code (position 10) + WMI make table |
+| `app/validators.py` | Per-field validators, VIN check digit, VIN cross-checks; all failures collected |
 | `app/errors.py` | 422 shape (summary + per-field errors) |
 | `app/warranty_coverage.py` | `check_warranty_coverage()` demo stub — real implementation drops in here |
 
@@ -84,3 +100,18 @@ uv run pytest
 
 No network or API key needed — the LLM is mocked with Pydantic AI's `FunctionModel`,
 and `ALLOW_MODEL_REQUESTS = False` guarantees no real calls escape.
+
+## Assumptions / Notes
+
+- Opted to validate VIN check-digit in a function rather than LLM, to avoid hallucinations (also helps cost)
+- Opted to handle VIN-year extraction and common VIN-make extraction outside of LLM (for cost). I figured it would be good to see how that might influence the structure, though if the LLM was both accurate and cheap-at-scale, that is potentially premature
+- Our clients might prefer HTTP 200 with `success: false` -- easy to change
+
+## AI Tools Used
+
+- Used Claude Fable 5 to generate the initial version from a plan session. Ways it helped:
+  - Took care of all easy mechanical issues (project setup/structure, uv, etc.) This let me think about the problem at the most effective and valuable level of detail
+  - Spotted some issues in the challenge spec (duplicate year field in definition, sample VIN having invalid check digit)
+  - It suggested using a function rather than LLM to validate the VIN (which was also my first thought). When I dove in, I asked it to defer the VIN-model logic to the LLM (though we could have integrated with an API or database if available.)
+  - Mostly because I'm keeping a function for VIN validation, I ended up with two LLM calls. I explored the trade-offs with Claude.
+- Used Cursor editor mostly to view (its AI autocomplete helped when I added vertical bars as delimiters in the LLM extraction fields table)
