@@ -20,7 +20,6 @@ agent = Agent(
         "Extract the requested fields from the automotive repair order text. "
         "Return null for any field not present in the text. "
         "Mileage must be an integer with commas and units stripped. "
-        "Do not extract the RO number, the customer complaint, or the technician name."
     ),
 )
 
