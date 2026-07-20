@@ -2,9 +2,11 @@ from datetime import datetime
 
 import pytest
 
-from app.schema import RawExtraction
+from app.schema import RawExtraction, VinConsistencyVerdict
 from app.validators import (
     compute_vin_check_digit,
+    consistency_verdict_issues,
+    cross_validate_vin,
     validate_extraction,
     validate_labor_hours,
     validate_make,
@@ -14,6 +16,7 @@ from app.validators import (
     validate_repair_description,
     validate_vin,
     validate_year,
+    vin_basic_ok,
 )
 
 SAMPLE_VIN_INVALID = "1G1FY6S00N0000123"  # check digit should be 'X', has '0'
@@ -127,3 +130,68 @@ class TestValidateExtraction:
         raw = _valid_extraction(vin=SAMPLE_VIN_INVALID, labor_hours=-1.0, year=1900)
         issues = validate_extraction(raw)
         assert {i.field for i in issues} == {"vin", "labor_hours", "year"}
+
+
+class TestCrossValidateVin:
+    def test_all_consistent(self):
+        assert validate_extraction(_valid_extraction()) == []
+        assert cross_validate_vin(_valid_extraction()) == []
+
+    def test_year_mismatch(self):
+        issues = cross_validate_vin(_valid_extraction(year=2023))
+        assert len(issues) == 1
+        assert issues[0].field == "year"
+        assert "'N'" in issues[0].message
+
+    def test_year_previous_cycle_accepted(self):
+        assert cross_validate_vin(_valid_extraction(year=1992)) == []  # 'N' is 1992 too
+
+    def test_make_mismatch(self):
+        issues = cross_validate_vin(_valid_extraction(make="Ford"))
+        assert len(issues) == 1
+        assert issues[0].field == "make"
+        assert "1G1" in issues[0].message and "Chevrolet" in issues[0].message
+
+    def test_make_comparison_case_insensitive(self):
+        assert cross_validate_vin(_valid_extraction(make="CHEVROLET")) == []
+
+    def test_unknown_wmi_no_make_issue(self):
+        base = "WVWAA7AJ0BW000001"  # Volkswagen — not in the local table
+        vin = base[:8] + compute_vin_check_digit(base) + base[9:]
+        issues = cross_validate_vin(_valid_extraction(vin=vin, make="Volkswagen", year=2011))
+        assert issues == []
+
+
+class TestConsistencyVerdictIssues:
+    def _verdict(self, **kwargs):
+        return VinConsistencyVerdict(**kwargs)
+
+    def test_all_none_gives_no_issues(self):
+        verdict = self._verdict()
+        assert consistency_verdict_issues(verdict, _valid_extraction(), make_locally_decided=False) == []
+
+    def test_model_inconsistent(self):
+        verdict = self._verdict(model_consistent=False, issues=["VDS says Bolt EUV"])
+        issues = consistency_verdict_issues(verdict, _valid_extraction(), make_locally_decided=True)
+        assert [i.field for i in issues] == ["model"]
+        assert "VDS says Bolt EUV" in issues[0].message
+
+    def test_make_inconsistent_when_not_locally_decided(self):
+        verdict = self._verdict(make_consistent=False)
+        issues = consistency_verdict_issues(verdict, _valid_extraction(), make_locally_decided=False)
+        assert [i.field for i in issues] == ["make"]
+
+    def test_make_verdict_ignored_when_locally_decided(self):
+        verdict = self._verdict(make_consistent=False)
+        assert consistency_verdict_issues(verdict, _valid_extraction(), make_locally_decided=True) == []
+
+
+class TestVinBasicOk:
+    def test_valid(self):
+        assert vin_basic_ok(_valid_extraction()) is True
+
+    def test_invalid_check_digit(self):
+        assert vin_basic_ok(_valid_extraction(vin=SAMPLE_VIN_INVALID)) is False
+
+    def test_missing_vin(self):
+        assert vin_basic_ok(_valid_extraction(vin=None)) is False

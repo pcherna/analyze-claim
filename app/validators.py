@@ -8,7 +8,8 @@ import re
 from datetime import datetime
 
 from app.errors import ValidationIssue
-from app.schema import REQUIRED_FIELDS, RawExtraction
+from app.schema import REQUIRED_FIELDS, RawExtraction, VinConsistencyVerdict
+from app.vin_decode import decode_make, normalize_make, year_code_matches
 
 # ISO 3779 check-digit transliteration. I, O, Q are not valid VIN characters.
 _TRANSLIT = {
@@ -103,6 +104,66 @@ _FIELD_VALIDATORS = {
     "part_number": validate_part_number,
     "labor_hours": validate_labor_hours,
 }
+
+
+def vin_basic_ok(raw: RawExtraction) -> bool:
+    """Whether the VIN is present and passed length/charset/check-digit checks."""
+    return raw.vin is not None and validate_vin(raw.vin) is None
+
+
+def cross_validate_vin(raw: RawExtraction) -> list[ValidationIssue]:
+    """Deterministic VIN-derived checks. Caller must ensure vin_basic_ok()."""
+    vin = raw.vin.strip().upper()
+    issues: list[ValidationIssue] = []
+    if raw.year is not None and year_code_matches(raw.year, vin) is False:
+        issues.append(
+            ValidationIssue(
+                field="year",
+                message=f"year {raw.year} does not match VIN: position 10 is '{vin[9]}', "
+                f"which does not encode that model year",
+                value=raw.year,
+            )
+        )
+    decoded_make = decode_make(vin)
+    if decoded_make is not None and raw.make is not None and normalize_make(raw.make) != normalize_make(decoded_make):
+        issues.append(
+            ValidationIssue(
+                field="make",
+                message=f"make '{raw.make}' does not match VIN: WMI '{vin[:3]}' indicates {decoded_make}",
+                value=raw.make,
+            )
+        )
+    return issues
+
+
+def consistency_verdict_issues(
+    verdict: VinConsistencyVerdict, raw: RawExtraction, make_locally_decided: bool
+) -> list[ValidationIssue]:
+    """Convert the LLM consistency verdict into issues.
+
+    A None verdict means the model could not judge — no issue (benefit of the
+    doubt). When the make was already decided by the local WMI table, the
+    LLM's make verdict is ignored in both directions.
+    """
+    evidence = f" ({'; '.join(verdict.issues)})" if verdict.issues else ""
+    issues: list[ValidationIssue] = []
+    if not make_locally_decided and verdict.make_consistent is False:
+        issues.append(
+            ValidationIssue(
+                field="make",
+                message=f"make '{raw.make}' is inconsistent with the VIN{evidence}",
+                value=raw.make,
+            )
+        )
+    if verdict.model_consistent is False:
+        issues.append(
+            ValidationIssue(
+                field="model",
+                message=f"model '{raw.model}' is inconsistent with the VIN{evidence}",
+                value=raw.model,
+            )
+        )
+    return issues
 
 
 def validate_extraction(raw: RawExtraction) -> list[ValidationIssue]:
