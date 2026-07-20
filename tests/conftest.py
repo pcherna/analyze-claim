@@ -1,5 +1,9 @@
 import os
 
+# Captured before the setdefault below poisons the environment: whether the
+# developer supplied a real key. Live tests (pytest -m llm) skip without one.
+_REAL_API_KEY = "ANTHROPIC_API_KEY" in os.environ
+
 # The Anthropic provider demands a key at import time; tests never call it
 # (agent.override + ALLOW_MODEL_REQUESTS below), so a dummy suffices.
 os.environ.setdefault("ANTHROPIC_API_KEY", "test-key-never-used")
@@ -22,6 +26,15 @@ models.ALLOW_MODEL_REQUESTS = False
 @pytest.fixture
 def client() -> TestClient:
     return TestClient(app)
+
+
+@pytest.fixture
+def live_llm():
+    """Lift the no-model-requests guard for tests marked `llm`."""
+    if not _REAL_API_KEY:
+        pytest.skip("live LLM test: no real ANTHROPIC_API_KEY in the environment")
+    with models.override_allow_model_requests(True):
+        yield
 
 
 def extraction_model(output: dict) -> FunctionModel:
