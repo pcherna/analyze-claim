@@ -17,9 +17,18 @@ uv run uvicorn app.main:app --reload
 ## Docker
 
 ```bash
+docker compose up --build
+```
+
+Or without compose:
+
+```bash
 docker build -t analyzemyclaim .
 docker run --rm -p 8000:8000 -e ANTHROPIC_API_KEY analyzemyclaim
 ```
+
+Both pass `ANTHROPIC_API_KEY` (and optionally `ANALYZE_CLAIM_MODEL`) through from
+your shell environment; the key must be set or the app exits at startup.
 
 The image installs locked dependencies with uv (`uv sync --frozen --no-dev`) and
 runs uvicorn as a non-root user on port 8000.
