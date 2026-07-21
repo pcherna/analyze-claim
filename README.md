@@ -14,6 +14,16 @@ export ANTHROPIC_API_KEY=sk-ant-...
 uv run uvicorn app.main:app --reload
 ```
 
+## Docker
+
+```bash
+docker build -t analyzemyclaim .
+docker run --rm -p 8000:8000 -e ANTHROPIC_API_KEY analyzemyclaim
+```
+
+The image installs locked dependencies with uv (`uv sync --frozen --no-dev`) and
+runs uvicorn as a non-root user on port 8000.
+
 ## Usage
 
 ```bash
