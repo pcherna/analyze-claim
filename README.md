@@ -129,7 +129,7 @@ uv run ptyest -m llm
 ## Design Decisions, Assumptions, and Notes
 
 - I chose to validate the VIN check-digit in a function rather than LLM, to avoid hallucinations (also helps cost).
-- For VIN-year extraction, I chose to do that in a function (simple, helps cost). For VIN-make extraction, since I already have functions I did a function to do the basic work (common makes), with an LLM fallback for less common ones. I'm relying on the LLM for the VIN-model info, so that part exists regardless. (If the LLM was both accurate and cheap-at-scale, splitting the model work feels premature).
+- For extracting year from VIN, I chose to do that in a function (simple, helps cost). For extracting make from VIN, since I am already using functions for part of the VIN I created a function to do the basic cases (most-common makes), with an LLM fallback for less common ones. I'm relying on the LLM for the model extraction from the VIN since that depends on a large amount of information that is "out there". (Should LLM be found to be consistently accurate and cheap-at-scale, splitting the model identification like I did is arguably premature).
 - Our clients might prefer HTTP 200 with `success: false` -- easy to change.
 - The test cases that use the LLM can be extended as we find cases that fail that in turn make us want to refine the prompt.
 - Didn't delete the code branches, in case you wanted to see them.
@@ -139,8 +139,8 @@ uv run ptyest -m llm
 - Used Claude Fable 5 to generate the initial version from a plan session. Ways it helped:
   - Claude took care of all easy mechanical issues (project setup/structure, uv, etc.) This let me think about the problem at the most effective and valuable level of detail.
   - Claude spotted some issues in the challenge-spec (duplicate year field in definition, sample VIN having invalid check digit)
-  - It suggested using a function rather than LLM to validate the VIN (which was already my thought). When I dove in, I asked it to defer the VIN-model logic to the LLM (though we could have integrated with an API or database if available.)
-  - Mostly because I'm keeping a function for VIN validation, I ended up with two LLM calls. I explored the trade-offs of reducing that to one, with Claude.
-- Use Claude to drive the creation of test-cases that use the LLM, and dockerizing. Keeps me focused on the real goals.
-- Used Claude to generate another test case (we could do more). I had it make "Murano" without explicit "Nissan", nice to be able to test or refine product requirements at a high level. Disappointed that Claude initially used my test case to populate the prompt -- I made it change that.
+  - It suggested using a function rather than LLM to validate the VIN (which was already my thought). When I dove in, I asked it to implement the VIN-model logic via the LLM (though we could have integrated with an API or database if available.)
+  - Mostly because I'm keeping a function for VIN validation, I ended up with two LLM calls, one for extraction and one for VIN analysis. I explored the trade-offs of combining that into one, with Claude.
+- Used Claude to drive the creation of test-cases that use the LLM, and to dockerize it. Keeps me focused on the real goals.
+- Used Claude to generate another test case (we could do more). I had it make "Murano" without explicit "Nissan", nice to be able to test or refine product requirements at a high level. Disappointed that Claude initially used my test case example to augment the prompt -- I made it pick a different example.
 - Used Cursor editor mostly to view (I started to add vertical bars as delimiters in the LLM extraction fields table, and its AI autocomplete finished the job.)
