@@ -101,6 +101,12 @@ uv run pytest
 No network or API key needed — the LLM is mocked with Pydantic AI's `FunctionModel`,
 and `ALLOW_MODEL_REQUESTS = False` guarantees no real calls escape.
 
+There is a separate set of tests that runs if an API key is set up. To invoke that set:
+
+```bash
+uv run ptyest -m llm
+```
+
 ## Assumptions / Notes
 
 - Opted to validate VIN check-digit in a function rather than LLM, to avoid hallucinations (also helps cost)
