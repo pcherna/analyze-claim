@@ -132,6 +132,7 @@ uv run ptyest -m llm
 - For VIN-year extraction, I chose to do that in a function (simple, helps cost). For VIN-make extraction, since I already have functions I did a function to do the basic work (common makes), with an LLM fallback for less common ones. I'm relying on the LLM for the VIN-model info, so that part exists regardless. (If the LLM was both accurate and cheap-at-scale, splitting the model work feels premature).
 - Our clients might prefer HTTP 200 with `success: false` -- easy to change.
 - The test cases that use the LLM can be extended as we find cases that fail that in turn make us want to refine the prompt.
+- Didn't delete the code branches, in case you wanted to see them.
 
 ## AI Tools Used
 
