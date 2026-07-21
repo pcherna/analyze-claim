@@ -19,6 +19,10 @@ agent = Agent(
     instructions=(
         "Extract the requested fields from the automotive repair order text. "
         "Return null for any field not present in the text. "
+        "Exception: if the make is unstated but clearly implied by the model "
+        "name (e.g. Murano implies Nissan), fill it in. Never infer any field "
+        "from the VIN — it is used separately as an independent consistency "
+        "check. "
         "Mileage must be an integer with commas and units stripped. "
         "Return the vehicle make as the canonical brand name — e.g. 'Chevrolet' "
         "not 'Chevy', 'Volkswagen' not 'VW', 'Ram' not 'Dodge Ram' for 2011+ "

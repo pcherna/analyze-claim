@@ -39,12 +39,8 @@ CHEVY_RO_TEXT = (
 # Almost everything absent — the model must return nulls, not guesses.
 MINIMAL_RO_TEXT = "VIN: 1G1FY6S0XN0000123. Replaced 12V battery."
 
-# The model is named ("Murano") but the make never is. Under the current
-# prompt ("null for any field not present"), returning null and inferring
-# "Nissan" from world knowledge are both acceptable; any other make is a
-# bug. If we decide the inference should be required — make is in
-# REQUIRED_FIELDS, so a null here becomes a 422 at the API layer — refine
-# the prompt and tighten the make assertion to == "Nissan".
+# The model is named ("Murano") but the make never is — the prompt requires
+# inferring the make from an unambiguous model name (not from the VIN).
 MURANO_RO_TEXT = (
     "RO# 662104 | 2021 Murano Platinum | VIN JN8AZ2BJ4MW123456\n"
     "Odometer: 41,872 mi\n"
@@ -73,16 +69,20 @@ class TestExtraction:
         assert result.labor_hours == 1.5
         assert result.part_number is None
 
-    def test_unstated_make_null_or_inferred(self, run):
+    def test_unstated_make_inferred_from_model(self, run):
         result = run(extract_claim(MURANO_RO_TEXT))
         assert result.model is not None and "murano" in result.model.lower()
-        assert result.make in (None, "Nissan")
+        assert result.make == "Nissan"
         assert result.year == 2021
         assert result.mileage == 41872
 
     def test_absent_fields_come_back_null(self, run):
         result = run(extract_claim(MINIMAL_RO_TEXT))
         assert result.vin == "1G1FY6S0XN0000123"
+        # No model named either, so the make must stay null — a '1G1' WMI is
+        # Chevrolet, and filling that in would violate the never-infer-from-VIN
+        # rule.
+        assert result.make is None
         assert result.mileage is None
         assert result.labor_hours is None
         assert result.part_number is None
